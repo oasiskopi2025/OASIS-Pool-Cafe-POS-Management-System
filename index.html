@@ -389,7 +389,7 @@ button,input,select{font:inherit}button{cursor:pointer}.app{display:flex;min-hei
  <div class="card" style="margin-bottom:14px"><div class="cardtitle">Ringkasan metode pembayaran</div><div class="list" id="reportPayments"><div class="empty">Belum ada transaksi pada periode ini.</div></div></div>
  <div class="card"><div class="cardtitle">Detail transaksi periode terpilih</div><div class="tablewrap"><table class="table"><thead><tr><th>Tanggal & Waktu</th><th>ID Transaksi</th><th>Pelanggan</th><th>Unit</th><th>Pembayaran</th><th>Total</th></tr></thead><tbody id="reportTable"><tr><td colspan="6" class="empty">Belum ada transaksi pada periode ini.</td></tr></tbody></table></div></div>
 </section>
-<section class="page" id="settings"><div class="heading"><div><h1>Pengaturan</h1><p>Identitas dan konfigurasi dasar OASIS.</p></div></div><div class="card"><div class="field"><label>Nama usaha</label><input value="OASIS Pool & Cafe" id="businessName"></div><div class="field"><label>Lokasi</label><input value="Komplek Stadion Menak Sopal, Trenggalek"></div><div class="field"><label>Mata uang</label><input value="IDR — Rupiah" disabled></div><div class="notice">Demo ini belum memakai login sungguhan, database cloud, integrasi payment gateway, WhatsApp, printer fisik, atau perangkat RFID. Jangan masukkan data pelanggan atau transaksi riil.</div><button class="btn primary" onclick="alert('Pengaturan identitas demo tersimpan untuk sesi ini.')">Simpan pengaturan</button> <button class="btn danger" onclick="if(confirm('Hapus seluruh data aplikasi di browser ini?')){localStorage.removeItem('oasisDemo');location.reload()}">Reset data demo</button></div></section>
+<section class="page" id="settings"><div class="heading"><div><h1>Pengaturan</h1><p>Identitas dan konfigurasi dasar OASIS.</p></div></div><div class="card"><div class="field"><label>Nama usaha</label><input value="OASIS Pool & Cafe" id="businessName"></div><div class="field"><label>Lokasi</label><input value="Komplek Stadion Menak Sopal, Trenggalek"></div><div class="field"><label>Mata uang</label><input value="IDR — Rupiah" disabled></div><div class="notice">Login Owner dan penyimpanan snapshot data telah terhubung ke Supabase. Integrasi transaksi relasional, payment gateway, WhatsApp, printer fisik, dan perangkat RFID masih memerlukan pengembangan dan pengujian. Jangan gunakan untuk transaksi operasional riil sebelum seluruh modul diuji.</div><button class="btn primary" onclick="alert('Pengaturan identitas demo tersimpan untuk sesi ini.')">Simpan pengaturan</button> <button class="btn danger" onclick="if(confirm('Hapus seluruh data aplikasi di browser ini?')){localStorage.removeItem('oasisDemo');location.reload()}">Reset data demo</button></div></section>
 </div></main></div>
 <div class="modalbg" id="modal"><div class="modal"><h3 id="modalTitle">Transaksi berhasil</h3><p id="modalDesc">Ringkasan transaksi demo.</p><div class="receipt" id="receipt"></div><div class="toolbar"><button class="btn primary" onclick="printReceipt()">Cetak struk</button><button class="btn" onclick="shareReceipt()">Bagikan WhatsApp</button><button class="btn" onclick="closeModal()">Tutup</button></div></div></div>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -978,6 +978,29 @@ document.getElementById('loginForm').addEventListener('submit',async function(e)
   err.style.display='block';
  }finally{btn.disabled=false;btn.textContent='Masuk ke Aplikasi　→'}
 });
+
+// Pulihkan sesi Owner yang masih aktif ketika halaman dibuka ulang.
+(async function restoreOasisOwnerSession(){
+ try{
+  const {data:{session},error:sessionError}=await oasisSupabase.auth.getSession();
+  if(sessionError) throw sessionError;
+  if(!session) return;
+  const {data:profile,error:profileError}=await oasisSupabase
+   .from('profiles')
+   .select('id,email,full_name,role,is_active')
+   .eq('id',session.user.id)
+   .single();
+  if(profileError) throw profileError;
+  if(!profile || !profile.is_active || profile.role!=='owner'){
+   await oasisSupabase.auth.signOut();
+   return;
+  }
+  await loadOasisCloudState();
+  loginAsOwner(profile);
+ }catch(error){
+  console.error('OASIS session restore:',error);
+ }
+})();
 
 renderProducts();renderCart();renderAll();renderStaffAccounts();
 
